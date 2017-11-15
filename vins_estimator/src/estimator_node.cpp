@@ -440,16 +440,22 @@ void process()
 {
     while (true)
     {
+        // vector<pair<vector<ImuDataPtr>, FeatureDataPtr>> measurements;
+
+        //Measurement数据结构 记录一帧i图像所有特征+对应i-1--i帧间IMU数据
+
         std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
         std::unique_lock<std::mutex> lk(m_buf);
         con.wait(lk, [&]
                  {
-            return (measurements = getMeasurements()).size() != 0;
+            return (measurements = getMeasurements()).size() != 0;//获取IMU和image data
                  });
         lk.unlock();
 
         for (auto &measurement : measurements)
         {
+            //-----------接收IMU数据,进行增量预计分
+
             for (auto &imu_msg : measurement.first)
                 send_imu(imu_msg);
 
@@ -457,8 +463,8 @@ void process()
             ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
 
             TicToc t_s;
-            map<int, vector<pair<int, Vector3d>>> image;
-            for (unsigned int i = 0; i < img_msg->points.size(); i++)
+            map<int, vector<pair<int, Vector3d>>> image;//map<feature.id,pair<camera_id,pose>>(该图像上某个特征点,位于的相机id和位姿？)
+            for (unsigned int i = 0; i < img_msg->points.size(); i++)//IMU数据是一个向量序列,依次读取
             {
                 int v = img_msg->channels[0].values[i] + 0.5;
                 int feature_id = v / NUM_OF_CAM;
@@ -577,7 +583,9 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "vins_estimator");
     ros::NodeHandle n("~");
-    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
+//    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info);
+    ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug);
+
     readParameters(n);
     estimator.setParameter();
 #ifdef EIGEN_DONT_PARALLELIZE
